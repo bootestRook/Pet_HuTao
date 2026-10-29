@@ -13,7 +13,7 @@ export function selectionLimit(categoryId: CategoryId): number {
   return LOADOUT_CATEGORIES.find(category => category.id === categoryId)!.limit;
 }
 
-export const BATTLE_LIMIT_MS = 60000;
+export const BATTLE_LIMIT_MS = 5 * 60_000;
 export const ARENA_SIZE = 420;
 export const SIMULATION_STEP_MS = 10;
 export const CHARGE_PER_BOUNCE = 2;

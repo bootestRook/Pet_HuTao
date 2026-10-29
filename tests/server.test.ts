@@ -5,7 +5,7 @@ import { createServer } from 'node:net';
 import { randomBytes } from 'node:crypto';
 import { Client, type Room } from '@colyseus/sdk';
 import { readConfig, originAllowed } from '../server/config.js';
-import { createDefaultLoadout, ARENA_SIZE } from '../shared/catalog.js';
+import { createDefaultLoadout, ARENA_SIZE, BATTLE_LIMIT_MS } from '../shared/catalog.js';
 import type { RoomSnapshot } from '../shared/types.js';
 
 let server: ChildProcess;
@@ -127,7 +127,7 @@ test('server accepts both balls and empty optional systems, rejects removed cont
   await room.leave();
 });
 
-test('two clients: choices, validation, ready, timed combat, refresh recovery, same result and rematch after departure', { timeout: 90000 }, async () => {
+test('two clients: choices, validation, ready, timed combat, refresh recovery, same result and rematch after departure', { timeout: BATTLE_LIMIT_MS + 30_000 }, async () => {
   const sdkA = new Client(endpoint);
   const a = await sdkA.create('duel', { name: '玩家甲' });
   const obsA = observe(a);
@@ -176,7 +176,7 @@ test('two clients: choices, validation, ready, timed combat, refresh recovery, s
   const obsRestored = observe(restored);
   await waitFor(() => obsRestored.state?.matchId === matchId && (obsRestored.state.battle?.elapsedMs ?? 0) > 1400);
   assert.equal(restored.sessionId, b.sessionId);
-  const resultA = await waitFor(() => obsA.state?.phase === 'finished' && obsA.state, 65000);
+  const resultA = await waitFor(() => obsA.state?.phase === 'finished' && obsA.state, BATTLE_LIMIT_MS + 5000);
   const resultB = await waitFor(() => obsRestored.state?.phase === 'finished' && obsRestored.state);
   assert.equal(resultA.matchId, resultB.matchId);
   assert.deepEqual(resultA.battle, resultB.battle);
@@ -281,7 +281,7 @@ test('spectator creator retains its seat across join order and reconnect; only t
   await a.leave(); await replacement.leave();
 });
 
-test('spectator receives the same battle result and its room survives both players leaving', { timeout: 90000 }, async () => {
+test('spectator receives the same battle result and its room survives both players leaving', { timeout: BATTLE_LIMIT_MS + 30_000 }, async () => {
   await assert.rejects(() => new Client(endpoint).create('duel', { name: '无效模式', mode: 'spectator' }));
   const host = await new Client(endpoint).create('duel', { name: '主持人', mode: 'spectator', hostKey: randomBytes(32).toString('hex') });
   const oh = observe(host);
@@ -298,7 +298,7 @@ test('spectator receives the same battle result and its room survives both playe
   const underway = await waitFor(() => oh.state?.phase === 'battle' && oh.state, 6000);
   assert.equal(underway.battle?.fighters.length, 2);
   assert.ok(!underway.battle?.fighters.some(fighter => fighter.id === host.sessionId));
-  const result = await waitFor(() => oh.state?.phase === 'finished' && oh.state, 65000);
+  const result = await waitFor(() => oh.state?.phase === 'finished' && oh.state, BATTLE_LIMIT_MS + 5000);
   await waitFor(() => oa.state?.phase === 'finished' && ob.state?.phase === 'finished');
   assert.deepEqual(result.battle, oa.state?.battle);
   assert.deepEqual(result.battle, ob.state?.battle);
@@ -319,7 +319,7 @@ test('spectator receives the same battle result and its room survives both playe
   await assert.rejects(() => new Client(endpoint).joinById(host.roomId, { name: '房间已关闭' }));
 });
 
-test('spectator still sees the final result when both players leave mid-battle, then accepts new invitees', { timeout: 90000 }, async () => {
+test('spectator still sees the final result when both players leave mid-battle, then accepts new invitees', { timeout: BATTLE_LIMIT_MS + 30_000 }, async () => {
   const host = await new Client(endpoint).create('duel', { name: '留守观众', mode: 'spectator', hostKey: randomBytes(32).toString('hex') });
   const observed = observe(host);
   const a = await new Client(endpoint).joinById(host.roomId, { name: '离场红方' });
@@ -332,7 +332,7 @@ test('spectator still sees the final result when both players leave mid-battle, 
   a.send('ready', { ready: true }); b.send('ready', { ready: true });
   const battle = await waitFor(() => observed.state?.phase === 'battle' && observed.state, 6000);
   await a.leave(); await b.leave();
-  const result = await waitFor(() => observed.state?.phase === 'finished' && observed.state, 65000);
+  const result = await waitFor(() => observed.state?.phase === 'finished' && observed.state, BATTLE_LIMIT_MS + 5000);
   assert.equal(result.matchId, battle.matchId);
   assert.equal(result.battle?.finished, true);
   assert.ok(result.battle?.draw || result.battle?.winnerId);

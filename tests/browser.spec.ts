@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { HEAL_ON_CONTACT } from '../shared/catalog.js';
+import { BATTLE_LIMIT_MS, HEAL_ON_CONTACT } from '../shared/catalog.js';
 import type { CategoryId, PetId } from '../shared/types.js';
 
 async function catalog(page: Page, category: CategoryId) {
@@ -109,7 +109,7 @@ test('two balls, empty expansion systems and synchronized desktop/mobile collisi
     await guest.reload();
     await expect(guest.locator('#room-id')).toHaveText(roomId);
     await expect(guest.locator('#battle-view')).toBeVisible();
-    await expect(host.locator('#result')).toBeVisible({ timeout: 70_000 });
+    await expect(host.locator('#result')).toBeVisible({ timeout: BATTLE_LIMIT_MS + 10_000 });
     await expect(guest.locator('#result')).toBeVisible();
     expect(await guest.locator('#result-stats').textContent()).toBe(await host.locator('#result-stats').textContent());
     expect(await guest.locator('#battle-clock').textContent()).toBe(await host.locator('#battle-clock').textContent());
@@ -181,7 +181,7 @@ test('spectator reconnects and watches two matching balls and their shared resul
     await expect(host.locator('#player-0 .fighter-name')).toContainText('P1');
     await expect(host.locator('#player-1 .fighter-name')).toContainText('P2');
     await host.screenshot({ path: testInfo.outputPath('spectator-battle.png'), fullPage: true });
-    for (const page of [host, first, second]) await expect(page.locator('#result')).toBeVisible({ timeout: 70_000 });
+    for (const page of [host, first, second]) await expect(page.locator('#result')).toBeVisible({ timeout: BATTLE_LIMIT_MS + 10_000 });
     const result = await first.locator('#result-stats').textContent();
     expect(await host.locator('#result-stats').textContent()).toBe(result);
     expect(await second.locator('#result-stats').textContent()).toBe(result);

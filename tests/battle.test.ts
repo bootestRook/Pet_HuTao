@@ -49,6 +49,30 @@ test('balls move immediately without timer damage, and snapshots do not expose m
   assert.equal(moved.elapsedMs, 100);
 });
 
+test('the five-minute limit keeps both living balls fighting beyond the old 60-second cutoff', () => {
+  assert.equal(BATTLE_LIMIT_MS, 5 * 60_000);
+  // This seeded match used to settle at 60s with both balls still alive.
+  const battle = new BattleSimulator(players(), 5);
+  const firstMinute = battle.advance(60_000);
+  const before = battle.snapshot();
+  assert.equal(before.elapsedMs, 60_000);
+  assert.equal(before.finished, false);
+  assert.equal(before.winnerId, null);
+  assert.equal(before.draw, false);
+  assert.deepEqual(before.fighters.map(fighter => fighter.hp), [40, 28]);
+  assert.ok(firstMinute.every(event => event.kind !== 'end'));
+
+  battle.advance(1000);
+  const after = battle.snapshot();
+  assert.equal(after.elapsedMs, 61_000);
+  assert.equal(after.finished, false);
+  assert.ok(after.fighters.every((fighter, index) => fighter.x !== before.fighters[index].x || fighter.y !== before.fighters[index].y));
+  const remaining = battle.advance(BATTLE_LIMIT_MS);
+  assert.equal(battle.snapshot().finished, true);
+  assert.equal(remaining.filter(event => event.kind === 'end').length, 1);
+  assert.ok(battle.snapshot().fighters.some(fighter => fighter.hp === 0), 'this match must now reach a knockout instead of timing out at 60s');
+});
+
 test('fixed steps retain sub-frame time and seeded results are independent of network chunk size', () => {
   const whole = new BattleSimulator(players(), 123456);
   const chunks = new BattleSimulator(players(), 123456);
@@ -181,7 +205,8 @@ test('timeout uses remaining HP ratio, and completed matches stop advancing or e
     Object.assign(b, { x: 100, y: ARENA_SIZE * 0.75, vx: BALL_SPEED, vy: 0, hp: 50 });
     const events = battle.advance(BATTLE_LIMIT_MS + 1000);
     const ended = battle.snapshot();
-    assert.equal(ended.elapsedMs, BATTLE_LIMIT_MS);
+    assert.equal(ended.elapsedMs, 5 * 60_000);
+    assert.deepEqual(ended.fighters.map(fighter => fighter.hp), [draw ? 50 : 25, 50]);
     assert.equal(ended.draw, draw);
     assert.equal(ended.winnerId, draw ? null : 'bob');
     assert.equal(events.filter(event => event.kind === 'attack').length, 0);

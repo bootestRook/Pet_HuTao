@@ -1,9 +1,10 @@
 import { defineConfig } from '@playwright/test';
+import { BATTLE_LIMIT_MS } from './shared/catalog.js';
 
 export default defineConfig({
   testDir: './tests',
   testMatch: '**/browser.spec.ts',
-  timeout: 150_000,
+  timeout: BATTLE_LIMIT_MS + 90_000,
   expect: { timeout: 10_000 },
   workers: 1,
   fullyParallel: false,
