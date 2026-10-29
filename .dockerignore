@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.env
+.env.*
+!.env.example
+.runtime
+test-results
+playwright-report
+tests
+scripts
+README.md
+*.log
