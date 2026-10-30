@@ -1,0 +1,12 @@
+export const CHENG_MEAL_THRESHOLD = 50;
+export const CHENG_MEAL_HEAL = 6;
+export const CHENG_MEAL_DURATION_MS = 600;
+export const CHENG_MEAL_COOLDOWN_MS = 6000;
+export const CHENG_INVULNERABLE_MS = 5000;
+export const CHENG_GRAPPLE_THRESHOLD = 30;
+export const CHENG_GRAPPLE_COOLDOWN_MS = 10_000;
+export const CHENG_DASH_DURATION_MS = 250;
+export const CHENG_BIND_DURATION_MS = 3000;
+export const CHENG_DRAIN_INTERVAL_MS = 1000;
+export const CHENG_DRAIN_DAMAGE = 2;
+export const CHENG_QUOTES = { survive: '那我不玩了', dash: '我跟你爆了', bind: '我们是最好的兄弟啊' } as const;

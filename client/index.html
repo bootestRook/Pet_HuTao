@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#183b35" />
-    <meta name="description" content="选择蓄力球或回春球，邀请好友观看一场真实碰撞的自动对战。" />
+    <meta name="description" content="选择胡涛、程执权或梁楚烁，携带最多 3 件道具，邀请好友观看自动对战。" />
     <title>小球斗场 · 好友对战</title>
   </head>
   <body>
@@ -15,20 +15,16 @@
     </header>
     <main id="main">
       <section id="entry" class="entry">
-        <div class="entry-intro"><h1>碰个面，<br />分个胜负。</h1><p>撞墙蓄力，还是碰撞回血？<br />选一颗小球，叫上好友来对战。</p><div class="entry-note"><span>双人对战</span><span>自动对战</span><span>无需注册</span></div></div>
+        <div class="entry-intro"><h1>碰个面，<br />分个胜负。</h1><p>让胡涛上嘴脸，或和程执权抱个兄弟。<br />选一颗小球，叫上好友来对战。</p><div class="entry-note"><span>双人对战</span><span>自动对战</span><span>无需注册</span></div></div>
         <div class="entry-panel">
           <h2>进入斗场</h2><p class="muted">创建房间邀请好友，或用房间码加入。</p>
-          <div id="entry-mode-tabs" class="tabs entry-mode-tabs" role="tablist" aria-label="创建房间模式">
-            <button id="mode-player" type="button" role="tab" aria-selected="true" aria-controls="create-panel" data-mode="duel">玩家对战</button>
-            <button id="mode-spectator" type="button" role="tab" aria-selected="false" aria-controls="create-panel" data-mode="spectator" tabindex="-1">主机观战</button>
-          </div>
           <form id="entry-form">
-            <div id="create-panel" role="tabpanel" aria-labelledby="mode-player">
-              <p id="mode-description" class="mode-description">你作为玩家出战，邀请一位好友与你对决。</p>
+            <div id="create-panel">
+              <p class="mode-description">2 个对战位，8 个观众位。优先入座对战，满位后自动进入观众席，也可在房间内切换。</p>
               <label for="nickname">你的昵称</label><input id="nickname" name="nickname" maxlength="16" placeholder="给自己起个名字" autocomplete="nickname" required />
               <button id="create" class="button primary" type="submit">创建房间</button>
             </div>
-            <div class="or"><span>或作为玩家加入好友的房间</span></div>
+            <div class="or"><span>或加入好友的房间</span></div>
             <label for="room-code">房间码</label><div class="join-row"><input id="room-code" name="room-code" placeholder="粘贴房间码或邀请链接" maxlength="200" autocomplete="off" autocapitalize="off" spellcheck="false" /><button id="join" class="button secondary" type="button">加入</button></div>
           </form>
           <p id="entry-status" class="entry-status" role="status"></p>
@@ -37,12 +33,17 @@
       <section id="room" class="room" hidden>
         <div class="room-heading"><div><h1>选择你的出战小球</h1><p id="room-subtitle">选好小球，双方准备后自动开战。</p></div><button class="button quiet" id="leave" type="button">退出房间</button></div>
         <div class="invite-strip"><span>房间 <strong id="room-id"></strong></span><label class="sr-only" for="invite-url">邀请链接</label><input id="invite-url" readonly /><button id="copy-link" class="button small" type="button">复制邀请链接</button></div>
-        <p id="room-host" class="room-host" hidden></p>
-        <section id="preparation" aria-label="赛前准备">
-          <div class="room-roster" aria-label="房间成员">
+        <section class="room-members" aria-label="房间席位">
+          <div class="section-line seats-heading"><h2>对战位 <span id="player-count">0 / 2</span></h2><span id="my-role" class="muted" role="status"></span></div>
+          <div class="room-roster" aria-label="对战玩家">
             <article id="seat-0" class="room-seat"><span class="seat-dot"></span><div><strong class="seat-name">等待玩家</strong><span class="seat-summary">等待加入</span></div><span class="seat-status">空位</span></article>
             <article id="seat-1" class="room-seat"><span class="seat-dot"></span><div><strong class="seat-name">等待好友</strong><span class="seat-summary">复制邀请链接给好友</span></div><span class="seat-status">空位</span></article>
           </div>
+          <div class="section-line seats-heading"><h2>观众席 <span id="spectator-count" aria-live="polite">0 / 8</span></h2><button id="switch-seat" class="button small" type="button" aria-describedby="seat-hint">加入观众席</button></div>
+          <ol id="spectator-list" class="spectator-list" aria-label="观众名单"></ol>
+          <p id="seat-hint" class="seat-hint">准备阶段和结算后可切换席位，切换后双方需要重新准备。</p>
+        </section>
+        <section id="preparation" aria-label="赛前准备">
           <div id="player-preparation" class="prep-workspace">
             <aside id="loadout-panel" class="loadout-panel" aria-label="我的出战搭配">
               <div class="section-line"><h2>我的出战搭配</h2><span id="loadout-lock" class="muted">可调整</span></div>
@@ -61,7 +62,7 @@
               <div class="catalog-search-row"><label class="sr-only" for="catalog-search">搜索名称或效果</label><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><path d="m15 15 5 5"/></svg><input id="catalog-search" type="search" autocomplete="off" placeholder="搜索名称或效果，如：蓄力、回血" /><button id="clear-search" type="button" class="text-button" hidden>清空</button></div>
               <div class="catalog-body">
                 <div class="catalog-results"><div id="catalog-grid" class="catalog-grid" role="tabpanel" tabindex="0"></div><p id="catalog-empty" class="catalog-empty" hidden>没有找到匹配内容。试试更短的名字或效果关键词。</p><div class="pagination"><button id="catalog-prev" class="page-button" type="button" aria-label="内容库上一页">上一页</button><span id="catalog-page" aria-live="polite"></span><button id="catalog-next" class="page-button" type="button" aria-label="内容库下一页">下一页</button></div></div>
-                <aside id="candidate-detail" class="candidate-detail" aria-labelledby="detail-name" tabindex="-1"><span id="detail-category" class="detail-category"></span><h3 id="detail-name"></h3><p id="detail-description"></p><dl id="detail-stats" class="detail-stats"></dl><p id="detail-note" class="detail-note"></p><div class="detail-actions"><button id="equip-candidate" class="button primary" type="button">装备</button><button id="unequip-candidate" class="button quiet" type="button" hidden>卸下</button></div><p id="detail-hint" class="muted"></p></aside>
+                <aside id="candidate-detail" class="candidate-detail" aria-labelledby="detail-name" tabindex="-1"><h3 id="detail-name"></h3><dl id="detail-stats" class="detail-stats"></dl><div id="detail-description"></div><div class="detail-actions"><button id="equip-candidate" class="button primary" type="button">装备</button><button id="unequip-candidate" class="button quiet" type="button" hidden>卸下</button></div><p id="detail-hint" class="muted"></p></aside>
               </div>
             </section>
           </div>
@@ -69,18 +70,19 @@
           <section id="spectator-waiting" class="spectator-waiting" aria-labelledby="spectator-status" hidden>
             <svg class="spectator-mark" viewBox="0 0 48 48" aria-hidden="true"><path d="M4 24s7-13 20-13 20 13 20 13-7 13-20 13S4 24 4 24Z"/><circle cx="24" cy="24" r="6"/></svg>
             <h2 id="spectator-status">等待两名玩家加入</h2>
-            <p id="spectator-hint">把上方邀请链接分别发给两位玩家。双方准备后，这里会自动进入战斗画面。</p>
-            <span class="spectator-role">你是观战主机 · 不占出战席位</span>
+            <p id="spectator-hint">邀请好友入座，或在对战位有空位时加入对战。双方准备后，这里会自动进入战斗画面。</p>
+            <span class="spectator-role">你在观众席 · 不占对战位</span>
           </section>
           <div id="countdown" class="countdown" hidden role="status"><strong id="countdown-number">3</strong><div><h2>双方已准备</h2><p>搭配已锁定，即将进入斗场。</p></div></div>
         </section>
         <div id="battle-view" class="battle-view" hidden>
           <section class="arena-panel" aria-label="对战场地">
             <div class="arena-top"><span id="phase-label">对战进行中</span><span id="battle-clock" class="battle-clock">00:00</span></div>
+            <div id="world-rule" class="world-rule" role="region" aria-label="本局随机效果"><div class="world-rule-heading"><strong id="world-rule-name"></strong><span id="world-rule-status"></span></div><p id="world-rule-description"></p></div>
             <div class="fighters">
-              <article id="player-0" class="fighter"><div class="fighter-line"><strong class="fighter-name"></strong><span class="fighter-status"></span></div><div class="fighter-pet"></div><div class="health-track" role="progressbar" aria-label="左方生命" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div class="health-fill"></div></div><div class="fighter-numbers"><span class="health-label"></span><span class="effect-label"></span></div><div class="fighter-loadout"></div></article>
+              <article id="player-0" class="fighter"><div class="fighter-line"><strong class="fighter-name"></strong><span class="fighter-status"></span></div><div class="fighter-pet"></div><div class="health-track" role="progressbar" aria-label="左方生命" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div class="health-fill"></div></div><div class="fighter-numbers"><span class="health-label"></span><span class="effect-label"></span></div><div class="fighter-loadout"></div><div class="fighter-items"></div></article>
               <span class="versus" aria-hidden="true">VS</span>
-              <article id="player-1" class="fighter"><div class="fighter-line"><strong class="fighter-name"></strong><span class="fighter-status"></span></div><div class="fighter-pet"></div><div class="health-track" role="progressbar" aria-label="右方生命" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div class="health-fill"></div></div><div class="fighter-numbers"><span class="health-label"></span><span class="effect-label"></span></div><div class="fighter-loadout"></div></article>
+              <article id="player-1" class="fighter"><div class="fighter-line"><strong class="fighter-name"></strong><span class="fighter-status"></span></div><div class="fighter-pet"></div><div class="health-track" role="progressbar" aria-label="右方生命" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><div class="health-fill"></div></div><div class="fighter-numbers"><span class="health-label"></span><span class="effect-label"></span></div><div class="fighter-loadout"></div><div class="fighter-items"></div></article>
             </div>
             <div class="canvas-wrap"><canvas id="arena-canvas" width="420" height="420" aria-label="小球自动碰撞战场，球内数字为生命，P1和P2对应上方玩家，血量和战况同时显示在文字区域"></canvas></div>
             <div class="arena-caption"><span id="arena-caption">自动弹跳 · 碰撞造成伤害</span><span class="live-dot">实时对战</span></div>

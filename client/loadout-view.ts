@@ -15,8 +15,23 @@ const icons: Record<CategoryId, string> = {
   traits: 'm12 2 9 10-9 10-9-10Z M8 12h8 M12 8v8'
 };
 const entryIcons: Record<string, string> = {
-  charge: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M13 5l-5 8h4l-1 6 6-9h-4Z',
-  renew: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M12 7v10 M7 12h10',
+  liangchushuo: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M12 3Q5 2 3 9q7-1 9-6 2 5 9 6 M5 10h6v4H5Z M13 10h6v4h-6Z M11 11h2 M8 17q4 3 8-1 M7 20l3 2 2-2 2 2 3-2',
+  'lucky-ticket': 'M3 5h18v5q-4 2 0 4v5H3v-5q4-2 0-4Z M14 5v3m0 3v2m0 3v3 M7 9l2 2-2 3',
+  'plain-club': 'M5 21 14 8q-3-4 0-6 5-1 7 4 0 4-5 4L8 23Z M15 4l3 3 M12 12l3 2',
+  'thorn-armor': 'M6 4h12l3 8-9 10-9-10Z M8 4 6 1 M16 4l2-3 M3 12H0 M21 12h3 M8 17l-3 4 M16 17l3 4',
+  'ascension-charm': 'M12 2 6 11l6 11 6-11Z M12 7v10 M8 11l4-4 4 4 M6 9 2 5v9l4 2 M18 9l4-4v9l-4 2',
+  'healing-orb': 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M12 7v10 M7 12h10 M5 2l1 2 M19 2l-1 2',
+  'banana-peel': 'M12 3v6 M12 8Q7 14 2 17q6 5 10-5 4 10 10 5-8-3-9-9 M11 3h3',
+  'emergency-toilet': 'M5 3h14v6H5Z M4 11q8-4 16 0v3q-1 5-7 5v3H9v-4q-5-1-5-7Z M4 12h16',
+  'wall-punch': 'M2 8h4v8H2 M6 12h3l2-4 2 8 2-8 2 4h2 M19 6h3v12h-3Z',
+  overinflator: 'M4 4h10 M9 4v7 M5 11h8v10H5Z M13 19h3V9q0-6 4-6t2 6q0 4-3 3',
+  'bomb-parcel': 'M3 8h18v13H3Z M3 8l4-5h10l4 5 M12 8v13 M9 3l3 5 3-5 M16 3q3-5 5-1',
+  'pain-installment': 'M5 2h14v20l-3-2-4 2-4-2-3 2Z M8 7h8 M8 11h8 M8 15h3 M15 14v5 M13 16h4',
+  'refund-code': 'M4 4h16v16H4Z M7 7v7 M10 7v7 M12 7v7 M15 7v7 M17 7v7 M8 17h8 M2 10V2h8',
+  'pearl-cup': 'M5 6h14l-2 16H7Z M4 6h16 M14 6l2-5 M10 15a1 1 0 1 0 0 .1 M14 17a1 1 0 1 0 0 .1 M10 19a1 1 0 1 0 0 .1',
+  'rewind-tape': 'M3 5h18v14H3Z M6 8h4v4H6Z M14 8h4v4h-4Z M7 16h10 M11 21l-4-3 4-3 M18 21l-4-3 4-3',
+  hutao: 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z M5 8h14 M6 10h5v4H6Z M13 10h5v4h-5Z M11 11h2 M8 17q5 2 8-1 M9 6l-1-3 3 1 1-2 1 2 3-1-1 3Z',
+  chengzhiquan: 'M21 12a9 9 0 0 1-18 0 M3 7q-2-5 3-4 0-4 4-2 2-3 4 0 4-2 4 2 5-1 3 4 M4 8q2-3 4 0t4 0t4 0t4 0 M10 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z M20 11a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z M10 11h4 M8 17q4 4 8 0',
 };
 function icon(category: CategoryId, id?: string) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -28,11 +43,25 @@ function mark(category: CategoryId, entry: Entry) {
   element.dataset.family = category === 'pets' ? entry.id : category;
   return element;
 }
-function statList(element: HTMLElement, rows: [string, string][]) {
+function statList(element: HTMLElement, rows: ['health' | 'attack' | 'speed', string, string][]) {
   element.replaceChildren();
-  for (const [label, value] of rows) {
+  for (const [id, label, value] of rows) {
     const group = document.createElement('div'); const dt = document.createElement('dt'); const dd = document.createElement('dd');
-    dt.textContent = label; dd.textContent = value; group.append(dt, dd); element.append(group);
+    group.className = 'stat-cell'; group.dataset.stat = id;
+    dt.textContent = label;
+    const [number, unit] = value.split(' / ');
+    dd.append(document.createTextNode(number));
+    if (unit) { const suffix = document.createElement('span'); suffix.className = 'stat-unit'; suffix.textContent = ` / ${unit}`; dd.append(suffix); }
+    group.append(dt, dd); element.append(group);
+  }
+}
+
+/** Render plain catalog text safely; only numeric runs become semantic emphasis. */
+function appendEffectText(element: HTMLElement, text: string) {
+  for (const part of text.split(/([≤≥+−]?\d+(?:[.～–]\d+)?%?)/g)) {
+    if (!part) continue;
+    if (/\d/.test(part)) { const value = document.createElement('strong'); value.className = 'effect-value'; value.textContent = part; element.append(value); }
+    else element.append(document.createTextNode(part));
   }
 }
 
@@ -116,7 +145,7 @@ export class LoadoutView {
     setText('selected-pet-name', pet.name); setText('selected-pet-title', pet.title);
     $('selected-pet-mark').style.setProperty('--pet-color', pet.color);
     $('selected-pet-mark').replaceChildren(icon('pets', pet.id));
-    statList($('pet-stats'), [['生命', String(pet.hp)], ['碰撞伤害', String(pet.attack)], ['移速', `${pet.speed} / 秒`]]);
+    statList($('pet-stats'), [['health', '生命', String(pet.hp)], ['attack', '碰撞伤害', String(pet.attack)], ['speed', '移速', `${pet.speed} / 秒`]]);
     const statsCaption = document.createElement('div'); statsCaption.className = 'stats-caption';
     const statsLabel = document.createElement('dt'); statsLabel.textContent = '小球基础属性';
     const statsNote = document.createElement('dd'); statsNote.textContent = '固有效果自动生效';
@@ -134,7 +163,7 @@ export class LoadoutView {
     this.updateTabs('equipped-tabs', this.equippedCategory);
     setText('equipped-title', this.equippedCategory === 'pets' ? '出战小球' : `已装备${descriptor.label}`); setText('equipped-count', `${ids.length} / ${descriptor.limit}`);
     setText('equipped-help', !entries.length ? `暂无${descriptor.label}，当前版本尚未添加，可直接准备开战。` : this.replacement?.category === this.equippedCategory ? `已选择槽位 ${this.replacement.index + 1}，从内容库选择要替换的${descriptor.singular}。` : this.equippedCategory === 'pets' ? '点击小球查看固有效果，也可以从内容库更换。' : '点击已装备内容查看详情，或指定要替换的槽位。');
-    const container = $('equipped-slots'); container.replaceChildren();
+    const container = $('equipped-slots'); container.style.setProperty('--slot-columns', String(descriptor.slotPageSize)); container.replaceChildren();
     for (let index = state.equippedPage * descriptor.slotPageSize; index < Math.min(descriptor.limit, (state.equippedPage + 1) * descriptor.slotPageSize); index++) {
       const entry = entries.find(entry => entry.id === ids[index]);
       const slot = document.createElement(entry ? 'button' : 'div'); slot.className = `equipped-slot${entry ? '' : ' is-empty'}`; slot.dataset.slotIndex = String(index);
@@ -218,23 +247,30 @@ export class LoadoutView {
     const selected = !!entry && ids.includes(entry.id);
     const target = this.replacement?.category === this.category ? this.replacement.index : null;
     const canAdd = this.descriptor.limit === 1 || ids.length < this.descriptor.limit || target !== null;
-    setText('detail-category', `${this.descriptor.singular}详情`);
     $('candidate-detail').classList.toggle('is-empty', !entry);
-    $('detail-category').hidden = !entry;
     setText('detail-name', entry?.name ?? (emptyCatalog ? `暂无${this.descriptor.label}` : '点选图标查看详情'));
-    setText('detail-description', entry?.description ?? (emptyCatalog ? `当前版本尚未添加${this.descriptor.label}，选择小球即可准备开战。` : '在这里查看名称、完整效果，再决定是否选用。'));
     const pet = this.category === 'pets' ? PETS.find(pet => pet.id === entry?.id) : undefined;
-    statList($('detail-stats'), pet ? [['生命', String(pet.hp)], ['碰撞伤害', String(pet.attack)], ['移速', `${pet.speed} / 秒`]] : []);
+    const description = $('detail-description'); description.replaceChildren();
+    if (pet) for (const effect of pet.effects) {
+      const section = document.createElement('section'); section.className = 'detail-effect';
+      const title = document.createElement('h4'); title.className = 'effect-name'; title.textContent = effect.name;
+      const list = document.createElement('ul');
+      for (const line of effect.lines) { const row = document.createElement('li'); appendEffectText(row, line); list.append(row); }
+      section.append(title, list); description.append(section);
+    } else {
+      const paragraph = document.createElement('p');
+      appendEffectText(paragraph, entry?.description ?? (emptyCatalog ? `当前版本尚未添加${this.descriptor.label}，选择小球即可准备开战。` : '点选内容查看效果与数值。'));
+      description.append(paragraph);
+    }
+    statList($('detail-stats'), pet ? [['health', '生命', String(pet.hp)], ['attack', '碰撞伤害', String(pet.attack)], ['speed', '移速', `${pet.speed} / 秒`]] : []);
     $('detail-stats').hidden = !pet;
-    const note = this.category === 'pets' ? '固有效果随小球自动生效，无需占用技能或特性槽位。' : this.category === 'skills' ? `最多携带 ${this.descriptor.limit} 个当前小球的技能，也可以留空。` : this.category === 'traits' ? `同时最多启用 ${this.descriptor.limit} 个当前小球的特性，也可以留空。` : this.category === 'items' ? '道具槽位可以留空，具体效果以内容说明为准。' : '';
-    setText('detail-note', note); $('detail-note').hidden = !entry || !note;
     $('candidate-detail').querySelector<HTMLElement>('.detail-actions')!.hidden = !entry;
-    $('detail-hint').hidden = !entry;
     const action = $<HTMLButtonElement>('equip-candidate');
     action.disabled = this.locked || !entry || selected || !canAdd;
     action.textContent = selected ? this.category === 'pets' ? '已选择' : '已装备' : target !== null && this.descriptor.limit > 1 ? `替换槽位 ${target + 1}` : this.category === 'pets' ? '选择这颗小球' : this.descriptor.limit === 1 && ids.length ? `更换${this.descriptor.singular}` : `装备${this.descriptor.singular}`;
     const remove = $<HTMLButtonElement>('unequip-candidate'); remove.hidden = !selected || this.category === 'pets'; remove.disabled = this.locked;
-    setText('detail-hint', this.locked ? '当前无法修改搭配，仍可浏览内容。' : !canAdd && !selected ? '槽位已满，请在已装备区域点选一个槽位进行替换。' : selected ? '已加入出战搭配。' : '查看详情不会改变搭配，点击装备后生效。');
+    const hint = !canAdd && !selected ? `最多携带 ${this.descriptor.limit} 件，请先卸下或点选槽位替换。` : '';
+    setText('detail-hint', hint); $('detail-hint').hidden = !entry || !hint;
   }
   private equip() {
     const entry = this.selectedEntry(); if (this.locked || !entry) return;

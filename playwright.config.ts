@@ -3,7 +3,7 @@ import { BATTLE_LIMIT_MS } from './shared/catalog.js';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: '**/browser.spec.ts',
+  testMatch: '**/*browser.spec.ts',
   timeout: BATTLE_LIMIT_MS + 90_000,
   expect: { timeout: 10_000 },
   workers: 1,

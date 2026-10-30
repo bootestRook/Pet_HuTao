@@ -1,19 +1,24 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { BattleSimulator } from '../server/battle.js';
-import { ARENA_SIZE, BATTLE_LIMIT_MS, CHARGE_PER_BOUNCE, HEAL_ON_CONTACT, MAX_CHARGE, PETS, SIMULATION_STEP_MS, createDefaultLoadout } from '../shared/catalog.js';
+import { ARENA_SIZE, BATTLE_LIMIT_MS, PETS, SIMULATION_STEP_MS, createDefaultLoadout } from '../shared/catalog.js';
 import type { BattleEvent, FighterState, PlayerInfo } from '../shared/types.js';
 
 type Combatant = Pick<PlayerInfo, 'id' | 'name' | 'loadout'>;
-const BALL_SPEED = PETS[0].speed;
+const BALL_SPEED = PETS.find(pet => pet.id === 'liangchushuo')!.speed;
 const players = (): Combatant[] => [
-  { id: 'alice', name: '蓄力球玩家', loadout: { ...createDefaultLoadout(), petId: 'charge' } },
-  { id: 'bob', name: '回春球玩家', loadout: { ...createDefaultLoadout(), petId: 'renew' } },
+  { id: 'alice', name: '碰撞玩家甲', loadout: { ...createDefaultLoadout(), petId: 'liangchushuo' } },
+  { id: 'bob', name: '碰撞玩家乙', loadout: { ...createDefaultLoadout(), petId: 'liangchushuo' } },
 ];
 // Only the tests reposition balls to reproduce exact contact geometries.
 // Production has no position setters or client-supplied combat state.
 function states(battle: BattleSimulator): FighterState[] {
   return (battle as unknown as { fighters: { state: FighterState }[] }).fighters.map(fighter => fighter.state);
+}
+function plainBattle(seed: number) {
+  const battle = new BattleSimulator(players(), seed);
+  for (const state of states(battle)) state.liang = null; // Physics fixtures isolate collision from character effects.
+  return battle;
 }
 function headOn(battle: BattleSimulator) {
   const [a, b] = states(battle);
@@ -26,7 +31,6 @@ function assertBounds(fighter: FighterState) {
   assert.ok(fighter.x >= fighter.radius - 1e-6 && fighter.x <= ARENA_SIZE - fighter.radius + 1e-6);
   assert.ok(fighter.y >= fighter.radius - 1e-6 && fighter.y <= ARENA_SIZE - fighter.radius + 1e-6);
   assert.ok(fighter.hp >= 0 && fighter.hp <= fighter.maxHp);
-  assert.ok(fighter.charge >= 0 && fighter.charge <= MAX_CHARGE);
 }
 
 test('balls move immediately without timer damage, and snapshots do not expose mutable state', () => {
@@ -37,10 +41,10 @@ test('balls move immediately without timer damage, and snapshots do not expose m
   assert.equal(initial.finished, false);
   assert.deepEqual(initial.fighters.map(f => f.hp), [100, 100]);
   assert.deepEqual(battle.advance(0), []);
-  inputs[0].loadout.petId = 'renew';
+  inputs[0].loadout.petId = 'hutao';
   initial.fighters[0].hp = 0;
   initial.fighters[0].x = -1000;
-  assert.equal(battle.snapshot().fighters[0].petId, 'charge');
+  assert.equal(battle.snapshot().fighters[0].petId, 'liangchushuo');
   assert.equal(battle.snapshot().fighters[0].hp, 100);
   battle.advance(100);
   const moved = battle.snapshot();
@@ -49,42 +53,61 @@ test('balls move immediately without timer damage, and snapshots do not expose m
   assert.equal(moved.elapsedMs, 100);
 });
 
-test('the five-minute limit keeps both living balls fighting beyond the old 60-second cutoff', () => {
-  assert.equal(BATTLE_LIMIT_MS, 5 * 60_000);
-  // This seeded match used to settle at 60s with both balls still alive.
-  const battle = new BattleSimulator(players(), 5);
-  const firstMinute = battle.advance(60_000);
-  const before = battle.snapshot();
-  assert.equal(before.elapsedMs, 60_000);
-  assert.equal(before.finished, false);
-  assert.equal(before.winnerId, null);
-  assert.equal(before.draw, false);
-  assert.deepEqual(before.fighters.map(fighter => fighter.hp), [40, 28]);
-  assert.ok(firstMinute.every(event => event.kind !== 'end'));
+test('character attributes set starting HP, traded damage and speed after contacts and wall bounces', () => {
+  const input = players();
+  input[0].loadout.petId = 'hutao';
+  input[1].loadout.petId = 'chengzhiquan';
+  const battle = new BattleSimulator(input, 42);
+  const initial = battle.snapshot().fighters;
+  assert.deepEqual(initial.map(fighter => [fighter.hp, fighter.maxHp]), [[100, 100], [120, 120]]);
+  for (const [index, speed] of [330, 240].entries()) {
+    assert.ok(Math.abs(Math.hypot(initial[index].vx, initial[index].vy) - speed) < 1e-6);
+  }
+  const [a, b] = states(battle);
+  Object.assign(a, { x: 177, y: 210, vx: 330, vy: 0 });
+  Object.assign(b, { x: 243, y: 210, vx: -240, vy: 0 });
+  const events = battle.advance(SIMULATION_STEP_MS);
+  assert.deepEqual(events.map(event => [event.kind, event.amount]), [['attack', 14], ['attack', 7]]);
+  assert.deepEqual([a.hp, b.hp], [93, 106]);
+  assert.ok(Math.abs(a.vx + 330) < 1e-6);
+  assert.ok(Math.abs(b.vx - 240) < 1e-6);
+  Object.assign(a, { x: a.radius + 0.2, y: 100 });
+  Object.assign(b, { x: ARENA_SIZE - b.radius - 0.2, y: 320 });
+  assert.deepEqual(battle.advance(SIMULATION_STEP_MS), []);
+  assert.ok(Math.abs(a.vx - 330) < 1e-6);
+  assert.ok(Math.abs(b.vx + 240) < 1e-6);
+  assert.deepEqual([a.wallBounces, b.wallBounces], [1, 1]);
+  assert.deepEqual([a.hp, b.hp], [93, 106]);
+});
 
+test('the five-minute limit keeps separated living balls moving beyond the old 60-second cutoff', () => {
+  assert.equal(BATTLE_LIMIT_MS, 5 * 60_000);
+  const battle = plainBattle(5);
+  (battle as unknown as { world: { state: { nextAtMs: number } } }).world.state.nextAtMs = Infinity;
+  const [a, b] = states(battle);
+  Object.assign(a, { x: 100, y: 100, vx: BALL_SPEED, vy: 0 });
+  Object.assign(b, { x: 100, y: 320, vx: BALL_SPEED, vy: 0 });
+  assert.equal(battle.advance(60_000).some(e => e.kind === 'end'), false);
+  const before = battle.snapshot();
   battle.advance(1000);
-  const after = battle.snapshot();
-  assert.equal(after.elapsedMs, 61_000);
-  assert.equal(after.finished, false);
-  assert.ok(after.fighters.every((fighter, index) => fighter.x !== before.fighters[index].x || fighter.y !== before.fighters[index].y));
-  const remaining = battle.advance(BATTLE_LIMIT_MS);
-  assert.equal(battle.snapshot().finished, true);
-  assert.equal(remaining.filter(event => event.kind === 'end').length, 1);
-  assert.ok(battle.snapshot().fighters.some(fighter => fighter.hp === 0), 'this match must now reach a knockout instead of timing out at 60s');
+  assert.equal(battle.snapshot().elapsedMs, 61_000); assert.equal(battle.snapshot().finished, false);
+  assert.notEqual(battle.snapshot().fighters[0].x, before.fighters[0].x);
+  assert.equal(battle.advance(BATTLE_LIMIT_MS).filter(e => e.kind === 'end').length, 1);
+  assert.equal(battle.snapshot().elapsedMs, BATTLE_LIMIT_MS);
 });
 
 test('fixed steps retain sub-frame time and seeded results are independent of network chunk size', () => {
-  const whole = new BattleSimulator(players(), 123456);
-  const chunks = new BattleSimulator(players(), 123456);
+  const whole = plainBattle(123456);
+  const chunks = plainBattle(123456);
   const expected = whole.advance(BATTLE_LIMIT_MS);
   const actual: BattleEvent[] = [];
   while (!chunks.snapshot().finished) actual.push(...chunks.advance(37));
   assert.deepEqual(actual, expected);
   assert.deepEqual(chunks.snapshot(), whole.snapshot());
   assert.deepEqual(expected.map(event => event.seq), expected.map((_, i) => i + 1));
-  const fractional = new BattleSimulator(players(), 42);
+  const fractional = plainBattle(42);
   for (let i = 0; i < 100; i++) fractional.advance(0.1);
-  const oneStep = new BattleSimulator(players(), 42);
+  const oneStep = plainBattle(42);
   oneStep.advance(10);
   assert.deepEqual(fractional.snapshot(), oneStep.snapshot());
 });
@@ -99,8 +122,8 @@ test('swapping input seats preserves positions, events and winner', () => {
   }
 });
 
-test('walls reflect velocity, a corner counts once, and charge caps without hurting either ball', () => {
-  const battle = new BattleSimulator(players(), 1);
+test('walls reflect velocity and count a corner once without hurting either ball', () => {
+  const battle = plainBattle(1);
   const [a, b] = states(battle);
   Object.assign(b, { x: ARENA_SIZE * 0.75, y: ARENA_SIZE * 0.75, vx: 0, vy: 0 });
   for (let i = 0; i < 5; i++) {
@@ -109,27 +132,24 @@ test('walls reflect velocity, a corner counts once, and charge caps without hurt
     assertBounds(a);
     assert.ok(a.vx > 0 && a.vy > 0);
     assert.equal(a.wallBounces, i + 1);
-    assert.equal(a.charge, Math.min(MAX_CHARGE, (i + 1) * CHARGE_PER_BOUNCE));
-    assert.equal(events.filter(event => event.kind === 'charge').length, i < Math.ceil(MAX_CHARGE / CHARGE_PER_BOUNCE) ? 1 : 0);
+    assert.deepEqual(events, []);
     assert.equal(a.hp, 100);
     assert.equal(b.hp, 100);
   }
 });
 
-test('new contact simultaneously damages both balls, spends charge, and heals the surviving renew ball', () => {
-  const battle = new BattleSimulator(players(), 2);
+test('new contact simultaneously damages both balls exactly once', () => {
+  const battle = plainBattle(2);
   const [a, b] = headOn(battle);
-  a.charge = MAX_CHARGE;
   const events = battle.advance(SIMULATION_STEP_MS);
   assert.equal(a.hp, 90);
-  assert.equal(b.hp, 100 - 10 - MAX_CHARGE + HEAL_ON_CONTACT);
-  assert.equal(a.charge, 0);
-  assert.equal(a.damageDealt, 10 + MAX_CHARGE);
+  assert.equal(b.hp, 90);
+  assert.equal(a.damageDealt, 10);
   assert.equal(b.damageDealt, 10);
-  assert.equal(b.healing, HEAL_ON_CONTACT);
+  assert.equal(b.healing, 0);
   assert.equal(a.hits, 1);
   assert.equal(b.hits, 1);
-  assert.deepEqual(events.map(event => event.kind), ['attack', 'attack', 'heal']);
+  assert.deepEqual(events.map(event => event.kind), ['attack', 'attack']);
   assert.ok(a.vx < 0 && b.vx > 0);
   assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= a.radius + b.radius);
   assert.ok(events.every(event => Number.isFinite(event.x) && Number.isFinite(event.y)));
@@ -137,7 +157,7 @@ test('new contact simultaneously damages both balls, spends charge, and heals th
 });
 
 test('contact separation never counts as another hit while the balls remain in the same contact', () => {
-  const battle = new BattleSimulator(players(), 2);
+  const battle = plainBattle(2);
   const [a, b] = headOn(battle);
   battle.advance(SIMULATION_STEP_MS);
   const hp = [a.hp, b.hp];
@@ -148,8 +168,8 @@ test('contact separation never counts as another hit while the balls remain in t
   assert.deepEqual([a.hp, b.hp], hp);
 });
 
-test('lethal trades finish as a draw and healing cannot resurrect a defeated renew ball', () => {
-  const battle = new BattleSimulator(players(), 2);
+test('lethal trades finish as a draw and count only actual damage', () => {
+  const battle = plainBattle(2);
   const [a, b] = headOn(battle);
   a.hp = 6; b.hp = 8;
   const events = battle.advance(SIMULATION_STEP_MS);
@@ -160,19 +180,19 @@ test('lethal trades finish as a draw and healing cannot resurrect a defeated ren
   assert.equal(battle.snapshot().winnerId, null);
 });
 
-test('the surviving renew ball heals in the winning exchange and never exceeds max HP', () => {
-  const battle = new BattleSimulator(players(), 2);
+test('the surviving ball wins after simultaneous collision damage', () => {
+  const battle = plainBattle(2);
   const [a, b] = headOn(battle);
   a.hp = 4; b.hp = 100;
   const events = battle.advance(SIMULATION_STEP_MS);
-  assert.equal(b.hp, 90 + HEAL_ON_CONTACT);
+  assert.equal(b.hp, 90);
   assert.equal(battle.snapshot().winnerId, 'bob');
-  assert.deepEqual(events.map(event => event.kind), ['attack', 'attack', 'heal', 'end']);
+  assert.deepEqual(events.map(event => event.kind), ['attack', 'attack', 'end']);
 });
 
 test('overlap recovery at a wall and at coincident centers stays finite and inside the arena', () => {
   for (const coincident of [false, true]) {
-    const battle = new BattleSimulator(players(), 2);
+    const battle = plainBattle(2);
     const [a, b] = states(battle);
     Object.assign(a, { x: a.radius, y: 200, vx: 0, vy: 0 });
     Object.assign(b, { x: coincident ? a.radius : a.radius + a.radius + b.radius - 4, y: 200, vx: -BALL_SPEED, vy: 0 });
@@ -187,7 +207,7 @@ test('overlap recovery at a wall and at coincident centers stays finite and insi
 });
 
 test('large network deltas still detect contacts instead of tunneling through the other ball', () => {
-  const battle = new BattleSimulator(players(), 2);
+  const battle = plainBattle(2);
   const [a, b] = states(battle);
   Object.assign(a, { x: 150, y: 260, vx: BALL_SPEED, vy: 0 });
   Object.assign(b, { x: 370, y: 260, vx: -BALL_SPEED, vy: 0 });
@@ -199,7 +219,9 @@ test('large network deltas still detect contacts instead of tunneling through th
 
 test('timeout uses remaining HP ratio, and completed matches stop advancing or emitting events', () => {
   for (const draw of [false, true]) {
-    const battle = new BattleSimulator(players(), 2);
+    const battle = plainBattle(2);
+    // Isolate timeout's ratio rule from the separately covered battlefield effects.
+    (battle as unknown as { world: { state: { nextAtMs: number } } }).world.state.nextAtMs = Infinity;
     const [a, b] = states(battle);
     Object.assign(a, { x: 100, y: ARENA_SIZE * 0.25, vx: BALL_SPEED, vy: 0, hp: draw ? 50 : 25 });
     Object.assign(b, { x: 100, y: ARENA_SIZE * 0.75, vx: BALL_SPEED, vy: 0, hp: 50 });
@@ -217,12 +239,12 @@ test('timeout uses remaining HP ratio, and completed matches stop advancing or e
 });
 
 test('invalid time, seeds, combatants and removed content are rejected', () => {
-  const battle = new BattleSimulator(players(), 1);
+  const battle = plainBattle(1);
   for (const delta of [-1, NaN, Infinity, -Infinity]) assert.throws(() => battle.advance(delta), RangeError);
   assert.equal(battle.snapshot().elapsedMs, 0);
   assert.throws(() => new BattleSimulator(players().slice(0, 1), 1));
   assert.throws(() => new BattleSimulator([players()[0], players()[0]], 1));
-  assert.throws(() => new BattleSimulator(players(), NaN));
+  assert.throws(() => plainBattle(NaN));
   const invalid = players();
   invalid[0].loadout.items = ['shield'];
   assert.throws(() => new BattleSimulator(invalid, 1));
@@ -242,18 +264,23 @@ test('all ball pairings and varied seeds remain bounded, trade actual hits and h
       assert.ok(Math.hypot(a.x - b.x, a.y - b.y) >= a.radius + b.radius - 1e-6, 'ball overlap must be resolved at every physics step');
       for (const fighter of snapshot.fighters) {
         assertBounds(fighter);
-        assert.ok(Math.abs(Math.hypot(fighter.vx, fighter.vy) - BALL_SPEED) < 1e-6);
+        assert.ok(Math.abs(Math.hypot(fighter.vx, fighter.vy) - PETS.find(pet => pet.id === fighter.petId)!.speed) < 1e-6);
       }
     }
     const final = battle.snapshot();
     assert.ok(final.elapsedMs <= BATTLE_LIMIT_MS);
     assert.equal(events.at(-1)?.kind, 'end');
-    assert.ok(events.length < 500);
+    // Five-minute mirror Cheng matches also emit meals, three drain/heal pairs,
+    // and bind/release events every cycle; they legitimately exceed the old 500.
+    assert.ok(events.length < 1000);
     for (const fighter of final.fighters) {
       const hits = events.filter(event => event.kind === 'attack' && event.sourceId === fighter.id);
       assert.equal(fighter.hits, hits.length);
-      assert.equal(fighter.damageDealt, hits.reduce((sum, event) => sum + event.amount, 0));
+      assert.equal(fighter.damageDealt, events.filter(event => ['attack', 'slap', 'drain'].includes(event.kind) && event.sourceId === fighter.id).reduce((sum, event) => sum + event.amount, 0));
       assert.equal(fighter.healing, events.filter(event => event.kind === 'heal' && event.sourceId === fighter.id).reduce((sum, event) => sum + event.amount, 0));
+      const lost = events.filter(event => ['attack', 'slap', 'self-damage', 'drain', 'arena-damage'].includes(event.kind) && event.targetId === fighter.id).reduce((sum, event) => sum + event.amount, 0);
+      const balanced = events.filter(event => event.kind === 'balance' && event.targetId === fighter.id).reduce((sum, event) => sum + event.amount, 0);
+      assert.equal(fighter.hp, fighter.maxHp - lost + fighter.healing + balanced, 'all HP changes must be explained by authoritative events');
     }
   }
 });

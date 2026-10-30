@@ -1,5 +1,5 @@
 import { Client, type Room } from '@colyseus/sdk';
-import type { Loadout, RoomMode, RoomSnapshot, ServerInfo } from '../shared/types.js';
+import type { Loadout, RoomSnapshot, SeatRole, ServerInfo } from '../shared/types.js';
 import { readStorage, writeStorage } from './storage.js';
 
 const SESSION_KEY = 'pet-arena:seat';
@@ -20,11 +20,8 @@ export class ArenaConnection {
   async config(): Promise<ServerInfo | null> {
     try { const response = await fetch('/api/config'); return response.ok ? await response.json() as ServerInfo : null; } catch { return null; }
   }
-  async create(name: string, mode: RoomMode = 'duel') {
-    const hostKey = mode === 'spectator'
-      ? Array.from(crypto.getRandomValues(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('')
-      : undefined;
-    return this.connect(() => this.client.create('duel', { name, mode, ...(hostKey ? { hostKey } : {}) }));
+  async create(name: string) {
+    return this.connect(() => this.client.create('duel', { name }));
   }
   async join(roomId: string, name: string) { return this.connect(() => this.client.joinById(roomId, { name })); }
   async restore(): Promise<boolean> {
@@ -88,7 +85,7 @@ export class ArenaConnection {
     }
   }
   private friendlyError(message: string) {
-    if (/full|maxClients|locked/i.test(message)) return '房间已满或正在比赛，请等待好友重新邀请。';
+    if (/full|maxClients|locked/i.test(message)) return '房间已满（2 个对战位、8 个观众位），请等待空位。';
     if (/not found|not available|invalid room|room.*exist/i.test(message)) return '没有找到这个房间，请检查房间码。';
     if (/[\u4e00-\u9fff]/.test(message)) return message;
     return '连接失败，请检查服务器是否运行、网络是否可达，或房间码是否正确。';
@@ -100,6 +97,7 @@ export class ArenaConnection {
   loadout(loadout: Loadout) { this.room?.send('loadout', loadout); }
   ready(ready: boolean) { this.room?.send('ready', { ready }); }
   rematch() { this.room?.send('rematch'); }
+  switchSeat(role: SeatRole) { this.room?.send('switch-seat', { role }); }
   async leave() {
     ++this.generation;
     const room = this.room;

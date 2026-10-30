@@ -3,7 +3,7 @@ import test from 'node:test';
 import { searchCatalog } from '../client/catalog-search.js';
 import { ITEMS, LOADOUT_CATEGORIES, PETS, SKILLS, TRAITS, createDefaultLoadout, getCategoryOptions, getSelection, selectionLimit, validateLoadout, withCategorySelection } from '../shared/catalog.js';
 
-// Search fixtures are independent of the playable catalogs, which start empty.
+// Search fixtures are independent of the playable catalogs.
 const catalog = [
   { id: 'potion', name: '急救药瓶', description: '生命低于 35% 时恢复 40 点，每局一次。', keywords: ['回血', '治疗'] },
   { id: 'boots', name: '轻羽靴', description: '出手间隔缩短 10%。', keywords: ['速度', '攻速'] },
@@ -11,8 +11,8 @@ const catalog = [
   { id: 'fang', name: '勇气獠牙', description: '生命低于一半时攻击增加 30%。' },
 ];
 
-test('the playable catalog contains two balls and keeps three empty optional systems without weapons', () => {
-  assert.deepEqual(PETS.map(pet => pet.id), ['charge', 'renew']);
+test('the playable catalog contains three balls, fourteen items and two empty expansion systems without weapons', () => {
+  assert.deepEqual(PETS.map(pet => pet.id), ['hutao', 'chengzhiquan', 'liangchushuo']);
   assert.deepEqual(LOADOUT_CATEGORIES.map(category => category.id), ['pets', 'items', 'skills', 'traits']);
   const loadout = createDefaultLoadout();
   assert.equal('weaponId' in loadout, false);
@@ -20,15 +20,34 @@ test('the playable catalog contains two balls and keeps three empty optional sys
   assert.equal(validateLoadout({ ...loadout, items: ['shield'] }), false);
   assert.equal(validateLoadout({ ...loadout, skills: ['cat-scratch'] }), false);
   assert.equal(validateLoadout({ ...loadout, traitId: 'fox-critical' }), false);
-  for (const category of ['items', 'skills', 'traits'] as const) {
-    assert.deepEqual(getCategoryOptions(category, 'charge'), []);
-    assert.deepEqual(getCategoryOptions(category, 'renew'), []);
+  assert.equal(ITEMS.length, 14);
+  assert.equal(new Set(ITEMS.map(item => item.id)).size, 14);
+  for (const pet of PETS) {
+    assert.equal(getCategoryOptions('items', pet.id).length, 14);
+    assert.equal(validateLoadout({ ...loadout, petId: pet.id, items: ITEMS.slice(0, 3).map(item => item.id) }), true);
+  }
+  assert.equal(validateLoadout({ ...loadout, items: ITEMS.map(item => item.id) }), false);
+  assert.equal(validateLoadout({ ...loadout, items: ['banana-peel', 'banana-peel'] }), false);
+  assert.equal(validateLoadout({ ...loadout, items: ['last-fireworks'] }), false);
+  for (const category of ['skills', 'traits'] as const) {
+    assert.deepEqual(getCategoryOptions(category, 'hutao'), []);
+    assert.deepEqual(getCategoryOptions(category, 'chengzhiquan'), []);
+    assert.deepEqual(getCategoryOptions(category, 'liangchushuo'), []);
     assert.deepEqual(getSelection(loadout, category), []);
-    assert.deepEqual(searchCatalog(getCategoryOptions(category, 'charge'), '回血'), []);
+    assert.deepEqual(searchCatalog(getCategoryOptions(category, 'hutao'), '回血'), []);
     assert.ok(selectionLimit(category) > 0);
     assert.throws(() => withCategorySelection(loadout, category, ['unavailable-entry']));
   }
-  assert.deepEqual(searchCatalog(PETS, '回春').map(entry => entry.id), ['renew']);
+  assert.deepEqual(searchCatalog(PETS, '回春'), []);
+  assert.equal(selectionLimit('items'), 3);
+  assert.equal(validateLoadout({ ...loadout, items: ITEMS.slice(0, 4).map(item => item.id) }), false);
+  for (const petId of ['charge', 'renew']) assert.equal(validateLoadout({ ...loadout, petId } as unknown as typeof loadout), false);
+  assert.deepEqual(searchCatalog(PETS, '上嘴脸').map(entry => entry.id), ['hutao']);
+  assert.equal(validateLoadout(withCategorySelection(loadout, 'pets', ['hutao'])), true);
+  assert.equal(validateLoadout(withCategorySelection(loadout, 'pets', ['chengzhiquan'])), true);
+  assert.deepEqual(searchCatalog(PETS, '程执权').map(entry => entry.id), ['chengzhiquan']);
+  assert.equal(validateLoadout(withCategorySelection(loadout, 'pets', ['liangchushuo'])), true);
+  for (const query of ['梁楚烁', '中分', '没毛', '礼尚往来']) assert.deepEqual(searchCatalog(PETS, query).map(entry => entry.id), ['liangchushuo']);
 });
 
 test('optional systems still support selecting, replacing, removing and clearing ball-specific fixture entries', () => {
@@ -39,9 +58,9 @@ test('optional systems still support selecting, replacing, removing and clearing
       id: `fixture-item-${index}`, name: `测试道具 ${index}`, description: '仅用于选装测试。', symbol: '◇',
     })));
     SKILLS.push(...Array.from({ length: selectionLimit('skills') + 1 }, (_, index) => ({
-      id: `fixture-charge-skill-${index}`, petId: 'charge' as const, name: `测试技能 ${index}`, description: '仅用于选装测试。',
+      id: `fixture-hutao-skill-${index}`, petId: 'hutao' as const, name: `测试技能 ${index}`, description: '仅用于选装测试。',
     })));
-    TRAITS.push({ id: 'fixture-charge-trait', petId: 'charge', name: '测试特性', description: '仅用于选装测试。' });
+    TRAITS.push({ id: 'fixture-hutao-trait', petId: 'hutao', name: '测试特性', description: '仅用于选装测试。' });
 
     const initial = createDefaultLoadout();
     const selected = withCategorySelection(initial, 'items', ['fixture-item-0', 'fixture-item-1']);
@@ -55,17 +74,17 @@ test('optional systems still support selecting, replacing, removing and clearing
     assert.throws(() => withCategorySelection(initial, 'items', ITEMS.map(item => item.id)));
 
     assert.throws(() => withCategorySelection(initial, 'skills', SKILLS.map(skill => skill.id)));
-    assert.throws(() => withCategorySelection(initial, 'skills', ['fixture-charge-skill-0', 'fixture-charge-skill-0']));
-    assert.throws(() => withCategorySelection(initial, 'traits', ['fixture-charge-trait', 'fixture-charge-trait']));
-    const withSkill = withCategorySelection(removed, 'skills', ['fixture-charge-skill-0']);
-    const withTrait = withCategorySelection(withSkill, 'traits', ['fixture-charge-trait']);
+    assert.throws(() => withCategorySelection(initial, 'skills', ['fixture-hutao-skill-0', 'fixture-hutao-skill-0']));
+    assert.throws(() => withCategorySelection(initial, 'traits', ['fixture-hutao-trait', 'fixture-hutao-trait']));
+    const withSkill = withCategorySelection(removed, 'skills', ['fixture-hutao-skill-0']);
+    const withTrait = withCategorySelection(withSkill, 'traits', ['fixture-hutao-trait']);
     assert.equal(validateLoadout(withTrait), true);
-    const switched = withCategorySelection(withTrait, 'pets', ['renew']);
+    const switched = withCategorySelection(withTrait, 'pets', ['liangchushuo']);
     assert.deepEqual(switched.items, ['fixture-item-2']);
     assert.deepEqual(switched.skills, []);
     assert.equal(switched.traitId, null);
-    assert.throws(() => withCategorySelection(switched, 'skills', ['fixture-charge-skill-0']));
-    assert.throws(() => withCategorySelection(switched, 'traits', ['fixture-charge-trait']));
+    assert.throws(() => withCategorySelection(switched, 'skills', ['fixture-hutao-skill-0']));
+    assert.throws(() => withCategorySelection(switched, 'traits', ['fixture-hutao-trait']));
   } finally {
     ITEMS.splice(0, ITEMS.length, ...originalItems);
     SKILLS.splice(0, SKILLS.length, ...originalSkills);
